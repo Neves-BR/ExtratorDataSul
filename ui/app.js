@@ -10,6 +10,17 @@ const _esc = s => String(s)
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;');
 
+// ── Captura global de erros JS (PyWebView não tem console visível) ────────────
+window.addEventListener('error', e => {
+  try {
+    const where = e.filename ? e.filename.split('/').pop() + ':' + e.lineno : '?';
+    appendLog(`Erro JS: ${e.message} [${where}]`);
+  } catch (_) {}
+});
+window.addEventListener('unhandledrejection', e => {
+  try { appendLog(`Erro assíncrono: ${e.reason}`); } catch (_) {}
+});
+
 // ── Estado ───────────────────────────────────────────────────────────────────
 let executando       = false;
 let autenticado      = false;
@@ -42,9 +53,13 @@ function _aplicarAccentVisual(accent) {
 
 /** Aplica acento e persiste no backend (usado apenas ao mudar via UI). */
 function setAccent(accent) {
-  currentAccent = accent;
-  _aplicarAccentVisual(accent);
-  setTimeout(() => pywebview.api.set_accent && pywebview.api.set_accent(accent), 0);
+  try {
+    currentAccent = accent;
+    _aplicarAccentVisual(accent);
+    setTimeout(() => pywebview.api.set_accent && pywebview.api.set_accent(accent), 0);
+  } catch (e) {
+    appendLog('Erro ao mudar acento: ' + e.message);
+  }
 }
 
 // ── Easter Egg ────────────────────────────────────────────────────────────────
@@ -104,11 +119,15 @@ function _atualizarIconeTema() {
 }
 
 function toggleTema() {
-  if (activeEgg) return;
-  darkMode = !darkMode;
-  document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-  _atualizarIconeTema();
-  setTimeout(() => pywebview.api.set_tema(darkMode ? 'dark' : 'light'), 0);
+  try {
+    if (activeEgg) return;
+    darkMode = !darkMode;
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    _atualizarIconeTema();
+    setTimeout(() => pywebview.api.set_tema(darkMode ? 'dark' : 'light'), 0);
+  } catch (e) {
+    appendLog('Erro ao mudar tema: ' + e.message);
+  }
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -733,10 +752,10 @@ window.addEventListener('pywebviewready', async () => {
   const estado = await pywebview.api.get_estado_inicial();
 
   // ── Aplicar tema e acento em lote (antes de qualquer outro repaint) ──────
-  // O HTML já carrega com data-theme="dark" — esta etapa apenas confirma
-  // ou corrige para o tema real salvo pelo usuário, minimizando flash.
+  // O HTML já carrega com data-theme="light" data-accent="amber" — esta etapa
+  // confirma ou corrige para o tema real salvo pelo usuário, minimizando flash.
   const accent = estado.accent || 'amber';
-  const tema   = estado.tema   || 'dark';
+  const tema   = estado.tema   || 'light';
 
   if (tema === 'pink' || tema === 'purple') {
     _ativarEgg(tema);
