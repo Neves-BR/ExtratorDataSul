@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExtratorDataSul NF-e</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── Modal de Login ──────────────────────────────────────────────── -->
+<div id="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="avatar large" id="modal-avatar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+      </div>
+      <div>
+        <h2>ExtratorDataSul NF-e</h2>
+        <p class="subtitle">Informe suas credenciais para continuar</p>
+      </div>
+    </div>
+
+    <div class="auth-error" id="auth-error">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <strong>Falha na autenticação</strong><br>
+        <span id="auth-error-msg"></span>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:14px">
+      <label for="input-usuario">Usuário</label>
+      <input type="text" id="input-usuario" autocomplete="username" placeholder="usuário" class="glass-input">
+    </div>
+
+    <div class="field" style="margin-bottom:14px">
+      <label for="input-senha">Senha</label>
+      <div class="pw-wrap">
+        <input type="password" id="input-senha" autocomplete="current-password" placeholder="senha" class="glass-input">
+        <button class="pw-toggle" id="btn-toggle-pw" type="button" aria-label="Mostrar senha">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div id="caps-aviso">⇪ Caps Lock ativado</div>
+    </div>
+
+    <label class="custom-checkbox" style="margin-bottom:0">
+      <input type="checkbox" id="check-salvar" checked>
+      <span class="checkmark"></span>
+      <span>Salvar credenciais com segurança</span>
+    </label>
+
+    <div class="modal-actions">
+      <button class="btn-primary" id="btn-entrar" style="flex:1;justify-content:center">
+        <span id="btn-entrar-text">Entrar</span>
+        <svg class="spin-anim hidden" id="btn-entrar-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      </button>
+      <button class="btn-ghost" id="btn-cancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── App ─────────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+      </div>
+      <div class="logo-text">
+        <span class="logo-title">ExtratorDataSul <span>NF-e</span></span>
+        <span class="logo-sub">Sistema de Extração de Notas Fiscais</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <!-- Theme toggle -->
+      <button class="btn-icon" id="btn-theme" title="Tema escuro" aria-label="Mudar tema">
+        <svg id="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>
+        <svg id="icon-sun" class="hidden" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+
+      <!-- Config dropdown -->
+      <div class="config-wrap">
+        <button class="btn-icon" id="btn-config" aria-haspopup="true" aria-expanded="false" aria-label="Configurações">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <div id="config-dropdown" class="config-dropdown" aria-hidden="true">
+          <div class="config-section-title">Arquivo de saída</div>
+          <div class="file-row">
+            <div class="file-path" id="file-path">relatorio_nfe_acumulativo.xlsx</div>
+            <button class="btn-sm" id="btn-escolher">Escolher…</button>
+          </div>
+          <div class="config-divider"></div>
+          <div class="config-section-title">Cor de destaque</div>
+          <div style="display:flex;gap:6px;margin-bottom:4px">
+            <button class="btn-accent-opt" data-accent="indigo" title="Índigo"
+              style="flex:1;padding:6px 0;border-radius:7px;border:2px solid transparent;background:rgba(99,102,241,.12);color:#6366f1;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s">Índigo</button>
+            <button class="btn-accent-opt" data-accent="teal" title="Teal"
+              style="flex:1;padding:6px 0;border-radius:7px;border:2px solid transparent;background:rgba(20,184,166,.12);color:#14b8a6;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s">Teal</button>
+            <button class="btn-accent-opt" data-accent="amber" title="Âmbar"
+              style="flex:1;padding:6px 0;border-radius:7px;border:2px solid transparent;background:rgba(245,158,11,.12);color:#f59e0b;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s">Âmbar</button>
+          </div>
+          <div class="config-divider"></div>
+          <div class="config-section-title">Comportamento</div>
+          <label class="custom-checkbox">
+            <input type="checkbox" id="opt-abrir" checked>
+            <span class="checkmark"></span>
+            <span>Abrir arquivo após extração</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Login / Logout -->
+      <button class="btn-primary" id="btn-usuario-login" style="padding:7px 16px;font-size:12px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>
+        Fazer login
+      </button>
+      <button class="btn-ghost hidden" id="btn-logout" style="padding:7px 14px;font-size:12px;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sair
+      </button>
+    </div>
+  </header>
+
+  <!-- Body: sidebar + main -->
+  <div class="app-body">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar" role="navigation" aria-label="Navegação principal">
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-nav="extract" aria-current="page">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          </span>
+          <span class="nav-label">Extração</span>
+        </button>
+        <button class="nav-item" data-nav="log">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </span>
+          <span class="nav-label">Log</span>
+        </button>
+        <button class="nav-item" data-nav="history">
+          <span class="nav-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+          </span>
+          <span class="nav-label">Histórico</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-card hidden" id="user-card" role="button" tabindex="0" aria-label="Usuário">
+          <div class="avatar" id="user-avatar">--</div>
+          <div class="user-info">
+            <div class="user-name" id="user-nome">Login</div>
+            <div class="user-role">Operador</div>
+          </div>
+        </div>
+        <button class="collapse-btn" id="btn-collapse" title="Recolher sidebar" aria-label="Recolher sidebar">
+          <svg id="icon-chev-left" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          <svg id="icon-chev-right" class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+
+      <!-- Update banner -->
+      <div id="update-banner" class="update-banner card animate-in" style="margin:16px 16px 0">
+        <div id="upd-disponivel" class="upd-state">
+          <div class="upd-texto">
+            <strong id="upd-versao-label">Nova versão disponível</strong>
+            <span class="upd-sub" id="upd-tamanho-label"></span>
+          </div>
+          <div class="upd-acoes">
+            <button class="btn-primary" id="btn-upd-baixar" style="padding:7px 14px;font-size:11px">Baixar e instalar</button>
+            <button class="btn-icon" id="btn-upd-ignorar" title="Ignorar">✕</button>
+          </div>
+        </div>
+        <div id="upd-baixando" class="upd-state hidden">
+          <div class="upd-texto">
+            <strong>Baixando atualização…</strong>
+            <span class="upd-sub" id="upd-pct-label">0%</span>
+          </div>
+          <div style="flex:1;height:4px;background:rgba(0,0,0,0.06);border-radius:2px;overflow:hidden;margin-left:12px">
+            <div class="progress-bar" id="upd-progress-bar"></div>
+          </div>
+        </div>
+        <div id="upd-pronto" class="upd-state hidden">
+          <div class="upd-texto">
+            <strong>Pronto para instalar!</strong>
+            <span class="upd-sub">O app será fechado e a instalação iniciará.</span>
+          </div>
+          <button class="btn-primary" id="btn-upd-instalar" style="padding:7px 14px;font-size:11px">Fechar e instalar</button>
+        </div>
+        <div id="upd-erro" class="upd-state hidden">
+          <div class="upd-texto">
+            <strong>Falha no download</strong>
+            <span class="upd-sub" id="upd-erro-label"></span>
+          </div>
+          <button class="btn-sm" id="btn-upd-retry">Tentar novamente</button>
+        </div>
+      </div>
+
+      <!-- ── Seção: Extração ── -->
+      <div id="section-extract" class="content">
+
+        <!-- Filtros -->
+        <div class="card animate-in">
+          <div class="section-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            Parâmetros de Extração
+          </div>
+          <div class="filter-grid">
+            <div class="field">
+              <label>Data</label>
+              <div class="range-row">
+                <input type="text" id="data-ini" class="glass-input" placeholder="DD/MM/AAAA" maxlength="10" aria-label="Data início">
+                <span class="range-sep">até</span>
+                <input type="text" id="data-fim" class="glass-input" placeholder="DD/MM/AAAA" maxlength="10" aria-label="Data fim">
+              </div>
+            </div>
+            <div class="field">
+              <label>Estabelecimento</label>
+              <div class="range-row">
+                <input type="text" id="estab-de" class="glass-input" value="502" aria-label="Estabelecimento de">
+                <span class="range-sep">até</span>
+                <input type="text" id="estab-ate" class="glass-input" value="505" aria-label="Estabelecimento até">
+              </div>
+            </div>
+            <div class="field">
+              <label>Série</label>
+              <div class="range-row">
+                <input type="text" id="serie-de" class="glass-input" value="1" aria-label="Série de">
+                <span class="range-sep">até</span>
+                <input type="text" id="serie-ate" class="glass-input" value="5" aria-label="Série até">
+              </div>
+            </div>
+            <div class="field">
+              <label>Nota Fiscal</label>
+              <div class="range-row">
+                <input type="text" id="nf-de" class="glass-input" value="1" aria-label="NF de">
+                <span class="range-sep">até</span>
+                <input type="text" id="nf-ate" class="glass-input" value="9999" aria-label="NF até">
+              </div>
+            </div>
+          </div>
+          <div class="situacao-group">
+            <div class="section-label" style="margin-bottom:10px">Situação</div>
+            <div class="checkbox-row">
+              <label class="custom-checkbox">
+                <input type="checkbox" id="sit-confirmadas" checked>
+                <span class="checkmark"></span>
+                <span>Confirmadas</span>
+              </label>
+              <label class="custom-checkbox">
+                <input type="checkbox" id="sit-canceladas">
+                <span class="checkmark"></span>
+                <span>Canceladas</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ações -->
+        <div class="card animate-in" style="animation-delay:.05s">
+          <div class="actions-row">
+            <div class="action-buttons">
+              <button class="btn-primary" id="btn-run" aria-label="Executar extração">
+                <svg id="icon-play" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                <svg class="spin-anim hidden" id="icon-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                <span id="btn-run-text">EXECUTAR</span>
+              </button>
+              <button class="btn-cancel hidden" id="btn-cancel" aria-label="Cancelar extração" title="Cancelar extração">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m18 6-12 12"/><path d="m6 6 12 12"/></svg>
+              </button>
+              <button class="btn-ghost" id="btn-limpar" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                LIMPAR
+              </button>
+            </div>
+            <div class="status-row" id="status-indicator">
+              <div class="status-dot pulse" id="status-dot"></div>
+              <span class="status-txt" id="status-text">Pronto para extrair</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stepper de progresso -->
+        <div class="card stepper-card animate-in" id="stepper-card" style="animation-delay:.08s">
+          <div class="section-label" style="margin-bottom:14px">Progresso da Extração</div>
+          <div class="stepper" id="stepper" role="list" aria-label="Etapas da extração">
+            <!-- preenchido via JS -->
+          </div>
+          <div class="step-progress">
+            <div class="step-progress-bar" id="step-progress-bar"></div>
+          </div>
+          <!-- Erro de extração -->
+          <div class="error-box hidden" id="extract-error-box">
+            <div class="error-box-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div>
+              <div class="error-box-title">Falha na extração</div>
+              <div class="error-box-msg" id="extract-error-msg"></div>
+              <div class="error-box-actions">
+                <button class="btn-sm" id="btn-retry-extract">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                  Tentar novamente
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /section-extract -->
+
+      <!-- ── Seção: Log ── -->
+      <div id="section-log" class="content hidden">
+        <div class="card log-card animate-in">
+          <div class="log-header">
+            <div class="log-title-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span style="font-weight:700;font-size:12px">Log de Execução</span>
+              <span class="log-count" id="log-count">(0)</span>
+            </div>
+            <div class="log-controls">
+              <div class="log-filters" role="group" aria-label="Filtros de log">
+                <button class="log-ftab active" data-filter="all">Todos</button>
+                <button class="log-ftab" data-filter="info">Info</button>
+                <button class="log-ftab" data-filter="warning">Avisos</button>
+                <button class="log-ftab" data-filter="error">Erros</button>
+                <button class="log-ftab" data-filter="ok">OK</button>
+              </div>
+              <button class="btn-icon" id="btn-log-copy" title="Copiar log" aria-label="Copiar log">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+              <button class="btn-icon" id="btn-log-clear" title="Limpar log" aria-label="Limpar log">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="log-body" id="log-body" role="log" aria-live="polite" aria-label="Entradas do log">
+            <div class="log-empty" id="log-empty">Nenhuma entrada no log</div>
+          </div>
+        </div>
+      </div><!-- /section-log -->
+
+      <!-- ── Seção: Histórico ── -->
+      <div id="section-history" class="content hidden">
+        <div class="card animate-in">
+          <div class="section-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+            Extrações Recentes
+          </div>
+          <div id="history-content" style="color:var(--txt-faint);font-size:12px;text-align:center;padding:40px 0">
+            Nenhuma extração registrada nesta sessão.
+          </div>
+        </div>
+      </div>
+
+    </main><!-- /main -->
+  </div><!-- /app-body -->
+</div><!-- /app -->
+
+<script src="app.js"></script>
+</body>
+</html>
