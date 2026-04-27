@@ -215,7 +215,11 @@ body::after {
   overflow: hidden;
   flex-shrink: 0;
 }
-.sidebar.collapsed { width: 56px; min-width: 56px; }
+.sidebar.collapsed { overflow: hidden; width: 56px; min-width: 56px; }
+
+.sidebar.collapsed .sidebar-nav {
+  overflow: hidden;
+}
 
 .sidebar-nav {
   flex: 1;
@@ -223,7 +227,7 @@ body::after {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 .nav-item {
   display: flex;
@@ -269,6 +273,10 @@ body::after {
 .user-name { font-size: 12px; font-weight: 600; color: var(--txt); overflow: hidden; text-overflow: ellipsis; }
 .user-role { font-size: 10px; color: var(--txt-faint); }
 .sidebar.collapsed .user-info { display: none; }
+.sidebar.collapsed .user-card {
+  justify-content: center;
+  padding: 8px 4px;
+}
 
 .collapse-btn {
   width: 100%;
