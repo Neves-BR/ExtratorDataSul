@@ -19,7 +19,8 @@ from core.utils import (
     carregar_credenciais, salvar_credenciais, remover_credenciais,
     carregar_arquivo_preferido, salvar_arquivo_preferido,
     carregar_filtros, salvar_filtros,
-    carregar_tema, salvar_tema, carregar_acento,
+    carregar_tema, salvar_tema,
+    carregar_acento, salvar_acento,
     range_to_semicolon, ts,
 )
 from core.extrator import processar_dados, filtrar_dataframe, salvar_com_append_apenas
@@ -33,10 +34,10 @@ class Api:
         self._username        = None
         self._password        = None
         self._em_execucao     = False
-        self._session         = None   # referência à session HTTP ativa (para cancelamento)
-        self._cancelado       = False  # distingue cancelamento voluntário de erro real
+        self._session         = None   # referência para cancelamento externo
+        self._cancelado       = False  # flag de cancelamento explícito pelo usuário
         self._instalador_path = None
-        _docs = os.path.join(os.path.expanduser('~'), 'Documents')
+        _docs   = os.path.join(os.path.expanduser('~'), 'Documents')
         _padrao = os.path.join(_docs, 'relatorio_nfe_acumulativo.xlsx')
         self._arquivo = carregar_arquivo_preferido() or _padrao
 
@@ -68,7 +69,7 @@ class Api:
     # ── Credenciais ───────────────────────────────────────────────────────────
 
     def get_estado_inicial(self):
-        """Retorna estado inicial para o frontend: credenciais + arquivo + tema + acento."""
+        """Retorna estado inicial para o frontend: credenciais, arquivo, tema e acento."""
         u, s = carregar_credenciais()
         if u and s:
             self._username = u
@@ -85,12 +86,17 @@ class Api:
         }
 
     def get_tema(self):
-        """Retorna o tema salvo: 'dark' ou 'light'."""
+        """Retorna o tema salvo."""
         return {'tema': carregar_tema()}
 
     def set_tema(self, tema):
         """Salva o tema escolhido pelo usuário."""
         salvar_tema(tema)
+        return {'ok': True}
+
+    def set_accent(self, accent):
+        """Salva o acento de cor escolhido pelo usuário."""
+        salvar_acento(accent)
         return {'ok': True}
 
     def fazer_login(self, username, password, salvar):
@@ -139,9 +145,9 @@ class Api:
 
     def abrir_arquivo(self):
         """Abre o arquivo Excel no aplicativo padrão do SO."""
-        # Validação de extensão antes de abrir
+        # Validação de extensão e existência antes de abrir
         if not self._arquivo.endswith('.xlsx'):
-            return {'ok': False, 'erro': 'Caminho de arquivo inválido.'}
+            return {'ok': False, 'erro': 'Caminho de arquivo inválido (deve ser .xlsx).'}
         if not os.path.exists(self._arquivo):
             return {'ok': False, 'erro': 'Arquivo não encontrado.'}
         try:
@@ -169,28 +175,28 @@ class Api:
         if not self._window:
             return
         if resultado.get('disponivel'):
-            v        = resultado['versao']
-            asset_id = resultado['asset_id']
-            tam      = resultado['tamanho']
-            notas    = resultado.get('notas', '')
+            v            = resultado['versao']
+            url_download = resultado['url_download']
+            tam          = resultado['tamanho']
+            notas        = resultado.get('notas', '')
             self._window.evaluate_js(
                 f"onAtualizacaoDisponivel("
-                f"{json.dumps(v)}, {asset_id}, {tam}, {json.dumps(notas)})"
+                f"{json.dumps(v)}, {json.dumps(url_download)}, {tam}, {json.dumps(notas)})"
             )
         elif resultado.get('erro'):
             self._log(f"Verificação de update: {resultado['erro']}", 'warn')
 
-    def baixar_atualizacao(self, asset_id, versao):
+    def baixar_atualizacao(self, url_download, versao):
         """
         Inicia o download do instalador em background.
         Progresso é enviado via onDownloadProgresso(pct).
         """
         threading.Thread(
-            target=self._baixar_thread, args=(asset_id, versao), daemon=True
+            target=self._baixar_thread, args=(url_download, versao), daemon=True
         ).start()
         return {'ok': True}
 
-    def _baixar_thread(self, asset_id, versao):
+    def _baixar_thread(self, url_download, versao):
         from core.updater import baixar_instalador, caminho_instalador_temp
         destino = caminho_instalador_temp(versao)
         self._instalador_path = None
@@ -199,7 +205,7 @@ class Api:
             if self._window:
                 self._window.evaluate_js(f'onDownloadProgresso({pct:.3f})')
 
-        ok, erro = baixar_instalador(asset_id, destino, progresso_cb=progresso)
+        ok, erro = baixar_instalador(url_download, destino, progresso_cb=progresso)
 
         if ok:
             self._instalador_path = destino
@@ -213,9 +219,9 @@ class Api:
 
     def fechar_e_instalar(self):
         """
-        Executa o instalador silenciosamente e fecha o app.
-        /SILENT           — janela mínima
-        /NORESTART        — não reinicia o Windows
+        Executa o instalador e fecha o app.
+        /SILENT       — janela mínima
+        /NORESTART    — não reinicia o Windows
         """
         if not self._instalador_path:
             return {'ok': False, 'erro': 'Instalador não encontrado.'}
@@ -249,24 +255,18 @@ class Api:
 
     def cancelar_extracao(self):
         """
-        Cancela a extração em andamento fechando a session HTTP ativa.
-        O fechamento da session interrompe qualquer request.post() bloqueante,
-        forçando uma ConnectionError que é capturada silenciosamente (sem
-        reportar erro na UI, pois o cancelamento é voluntário).
+        Cancela a extração em andamento fechando a sessão HTTP.
+        A thread detecta o fechamento (ConnectionError) e notifica o frontend
+        via onExtracaoCancelada() — distinguindo cancelamento de erro real.
         """
         if not self._em_execucao:
             return {'ok': False, 'erro': 'Nenhuma extração em andamento.'}
-
-        self._cancelado   = True
-        self._em_execucao = False
-
+        self._cancelado = True
         if self._session:
             try:
-                self._session.close()  # interrompe request bloqueante em andamento
+                self._session.close()
             except Exception:
                 pass
-
-        self._log('Extração cancelada pelo usuário', 'warn')
         return {'ok': True}
 
     def _keepalive(self, session):
@@ -284,7 +284,7 @@ class Api:
 
     def _executar_thread(self, p):
         self._em_execucao = True
-        self._cancelado   = False  # reset a cada execução
+        self._cancelado   = False
         self._progress(0.1)
         tempo_inicio = datetime.now()
         session = None
@@ -295,36 +295,36 @@ class Api:
                 data_ini = datetime.strptime(p['data_ini'], '%d/%m/%Y')
                 data_fim = datetime.strptime(p['data_fim'], '%d/%m/%Y')
             except Exception:
-                self._status('Formato de data invalido (use DD/MM/AAAA)', 'erro')
+                self._status('Formato de data inválido (use DD/MM/AAAA)', 'erro')
                 return
 
             if data_ini > data_fim:
                 self._status('Data inicial maior que data final', 'erro')
                 return
 
-            self._log(f"Periodo: {p['data_ini']} a {p['data_fim']}")
+            self._log(f"Período: {p['data_ini']} a {p['data_fim']}")
             self._status('Conectando ao DataSul...', 'processando')
             self._progress(0.2)
 
             # Autenticação
             self._log('Conectando ao DataSul...')
             session = requests.Session()
-            self._session = session  # armazena referência para cancelamento via cancelar_extracao()
+            self._session = session  # expõe para cancelar_extracao()
 
             try:
                 session.post(
                     f"{BASE_URL}/totvs-login/ACS?login",
                     data={
-                        'j_username': self._username,
-                        'j_password': self._password,
-                        'j_domain':   DOMAIN,
+                        'j_username':   self._username,
+                        'j_password':   self._password,
+                        'j_domain':     DOMAIN,
                         'j_use_domain': 'on',
-                        'chosenLang': 'pt',
+                        'chosenLang':   'pt',
                     },
                     timeout=30,
                     allow_redirects=True,
                     headers={
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
                     verify=VERIFY_SSL,
@@ -335,18 +335,21 @@ class Api:
             if not session.cookies.get('JSESSIONID'):
                 raise Exception('Falha na autenticação: JSESSIONID não recebido')
 
-            self._log('Conexao estabelecida', 'ok')
-
+            self._log('Conexão estabelecida', 'ok')
             threading.Thread(target=self._keepalive, args=(session,), daemon=True).start()
+
+            # Checkpoint: usuário pode ter cancelado durante o login
+            if self._cancelado:
+                raise Exception('__cancelled__')
 
             # Requisição
             self._status('Buscando dados...', 'processando')
             self._progress(0.4)
             self._log('Buscando dados...')
 
-            cod_estab = range_to_semicolon(p.get('estab_de',''), p.get('estab_ate',''))
-            cod_serie = range_to_semicolon(p.get('serie_de',''), p.get('serie_ate',''))
-            cod_nf    = range_to_semicolon(p.get('nf_de',''),    p.get('nf_ate',''))
+            cod_estab = range_to_semicolon(p.get('estab_de', ''), p.get('estab_ate', ''))
+            cod_serie = range_to_semicolon(p.get('serie_de', ''), p.get('serie_ate', ''))
+            cod_nf    = range_to_semicolon(p.get('nf_de', ''),    p.get('nf_ate', ''))
 
             sit_opcoes = []
             if p.get('sit_confirmadas'): sit_opcoes.append('5')
@@ -354,9 +357,9 @@ class Api:
             ind_sit = ';'.join(sit_opcoes) if sit_opcoes else '5;6'
 
             filtros_log = ' | '.join(
-                [f"Estab={cod_estab}"]*bool(cod_estab) +
-                [f"Série={cod_serie}"]*bool(cod_serie) +
-                [f"NF={cod_nf}"]*bool(cod_nf)
+                ([f"Estab={cod_estab}"] if cod_estab else []) +
+                ([f"Série={cod_serie}"] if cod_serie else []) +
+                ([f"NF={cod_nf}"]       if cod_nf    else [])
             ) or 'Nenhum (puxar tudo)'
             self._log(f"Filtros: {filtros_log}")
 
@@ -364,18 +367,18 @@ class Api:
                 'datHoraEmissao': f"{data_ini.strftime('%Y-%m-%d')};{data_fim.strftime('%Y-%m-%d')}"
             }
             body = {
-                'wayOfGeneration': 'Online',
-                'detailsHeader':        True,
-                'accountingGrid':       False,
-                'duplicates':           True,
-                'noteRemark':           True,
+                'wayOfGeneration':    'Online',
+                'detailsHeader':       True,
+                'accountingGrid':      False,
+                'duplicates':          True,
+                'noteRemark':          True,
                 'invoiceItemNarrative': True,
-                'itemTax':              False,
-                'trackingInformation':  False,
+                'itemTax':             False,
+                'trackingInformation': False,
             }
-            if cod_estab: body['codEstab']    = cod_estab
-            if cod_serie: body['codSerie']    = cod_serie
-            if cod_nf:    body['codNotaFis']  = cod_nf
+            if cod_estab:  body['codEstab']   = cod_estab
+            if cod_serie:  body['codSerie']   = cod_serie
+            if cod_nf:     body['codNotaFis'] = cod_nf
             if sit_opcoes: body['indSitNota'] = ind_sit
 
             response = session.post(
@@ -391,6 +394,10 @@ class Api:
                 verify=VERIFY_SSL,
             )
 
+            # Checkpoint: verifica cancelamento logo após o request retornar
+            if self._cancelado:
+                raise Exception('__cancelled__')
+
             if response.status_code != 200:
                 raise Exception(f"Status {response.status_code}: {response.text[:200]}")
 
@@ -398,7 +405,6 @@ class Api:
             self._progress(0.65)
 
             content_type = response.headers.get('content-type', '')
-
             if content_type.startswith('application/json'):
                 json_data = response.json()
                 if 'content' not in json_data:
@@ -410,15 +416,15 @@ class Api:
             df_novo = processar_dados(xml_content)
 
             if df_novo is None or len(df_novo) == 0:
-                self._log('Nenhum dado encontrado para o periodo informado', 'warn')
+                self._log('Nenhum dado encontrado para o período informado', 'warn')
                 self._status('Nenhum dado encontrado', 'atencao')
                 return
 
             df_novo, descartados = filtrar_dataframe(
                 df_novo,
-                p.get('estab_de',''), p.get('estab_ate',''),
-                p.get('serie_de',''), p.get('serie_ate',''),
-                p.get('nf_de',''),    p.get('nf_ate',''),
+                p.get('estab_de', ''), p.get('estab_ate', ''),
+                p.get('serie_de', ''), p.get('serie_ate', ''),
+                p.get('nf_de', ''),    p.get('nf_ate', ''),
                 sit_confirmadas=bool(p.get('sit_confirmadas', True)),
                 sit_canceladas= bool(p.get('sit_canceladas',  False)),
             )
@@ -436,8 +442,12 @@ class Api:
                 df_existente = pd.read_excel(self._arquivo)
                 registros_antes = len(df_existente)
                 if all(c in df_novo.columns for c in CHAVE_MERGE):
-                    df_novo['_KEY']       = df_novo['Estab'].astype(str)+'|'+df_novo['Série'].astype(str)+'|'+df_novo['Nota Fiscal'].astype(str)
-                    df_existente['_KEY']  = df_existente['Estab'].astype(str)+'|'+df_existente['Série'].astype(str)+'|'+df_existente['Nota Fiscal'].astype(str)
+                    df_novo['_KEY']      = (df_novo['Estab'].astype(str) + '|' +
+                                            df_novo['Série'].astype(str) + '|' +
+                                            df_novo['Nota Fiscal'].astype(str))
+                    df_existente['_KEY'] = (df_existente['Estab'].astype(str) + '|' +
+                                            df_existente['Série'].astype(str) + '|' +
+                                            df_existente['Nota Fiscal'].astype(str))
                     dups = len(df_novo[df_novo['_KEY'].isin(df_existente['_KEY'])])
                     df_novo = df_novo[~df_novo['_KEY'].isin(df_existente['_KEY'])].drop(columns=['_KEY'])
                     if dups > 0:
@@ -449,7 +459,7 @@ class Api:
 
             self._progress(1.0)
             segundos = int((datetime.now() - tempo_inicio).total_seconds())
-            self._status(f"Concluido em {segundos}s — {len(df_novo)} registros adicionados", 'sucesso')
+            self._status(f"Concluído em {segundos}s — {len(df_novo)} registros adicionados", 'sucesso')
 
             # Persistir filtros usados
             salvar_filtros({
@@ -475,9 +485,13 @@ class Api:
                 )
 
         except Exception as e:
-            # Cancelamento voluntário: não reportar como erro na UI
-            # (a UI já foi atualizada pelo cancelarExtracao() no frontend)
-            if not self._cancelado:
+            # Distingue cancelamento intencional de erro real
+            if self._cancelado or str(e) == '__cancelled__':
+                self._log('Extração cancelada pelo usuário', 'warn')
+                self._status('Extração cancelada', 'atencao')
+                if self._window:
+                    self._window.evaluate_js('onExtracaoCancelada()')
+            else:
                 self._status(f"Erro: {str(e)}", 'erro')
                 self._log(f"Erro: {str(e)}", 'err')
                 if self._window:
@@ -487,10 +501,13 @@ class Api:
 
         finally:
             if session:
-                session.close()
-            self._session     = None   # limpa referência após encerramento
-            self._cancelado   = False  # reset para próxima execução
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            self._session     = None
             self._em_execucao = False
+            self._cancelado   = False
             self._progress(0)
             if self._window:
                 self._window.evaluate_js('setExecutando(false)')
