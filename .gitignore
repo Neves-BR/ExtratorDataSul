@@ -1,0 +1,42 @@
+# ── Dados gerados pelo extrator ─────────────────────────────────────────────
+*.xlsx
+
+# ── Cache do Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── Credenciais e configuração local ─────────────────────────────────────────
+.env
+*.env
+
+# ── Preferências e filtros locais ─────────────────────────────────────────────
+prefs.txt
+filtros.json          # gerado em runtime pelo extrator
+
+# ── PyInstaller ───────────────────────────────────────────────────────────────
+dist/
+build/
+# .spec removido — deve ser versionado (define o build reproduzível)
+
+# ── Inno Setup — output do instalador ────────────────────────────────────────
+Output/
+
+# ── Inno Setup — script privado com PAT embutido ─────────────────────────────
+ExtratorDataSul_Setup.iss
+
+# ── Ambiente virtual ─────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── IDEs ─────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+
+ExtratorDataSul.spec
+*.jsx
+
+Docs
+*.docx

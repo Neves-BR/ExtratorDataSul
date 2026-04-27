@@ -1,0 +1,8 @@
+# Dependências de produção — ExtratorDataSul NF-e PyWebView
+# Instalar com: pip install -r requirements.txt
+
+pywebview       # janela WebView nativa
+requests        # requisições HTTP ao DataSul
+pandas          # processamento de dados XML → DataFrame
+openpyxl        # leitura e escrita de arquivos Excel
+pywin32         # DPAPI para criptografia de credenciais (win32crypt)
