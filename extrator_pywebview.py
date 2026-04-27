@@ -46,7 +46,9 @@ def main():
         height           = 720,
         min_size         = (700, 550),
         resizable        = False,
-        background_color = '#f0f2f8',
+        # Cor alinhada ao tema dark (#0b0f1a = --bg do data-theme="dark")
+        # Elimina o flash branco antes do WebView renderizar o primeiro frame
+        background_color = '#0b0f1a',
     )
     api.set_window(window)
     log_tempo("create_window OK")
