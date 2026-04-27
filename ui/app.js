@@ -3,34 +3,47 @@
 // ── Utilitários ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 
-// ── Estado ───────────────────────────────────────────────────────────────────
-let executando    = false;
-let autenticado   = false;
-let _updAssetId   = null;
-let _updVersao    = null;
-let logEntries    = [];
-let currentFilter = 'all';
-let logIdCounter  = 0;
-let sidebarCollapsed = false;
-let darkMode      = false;
-let activeEgg     = null;
-let currentAccent = 'amber';
+/** Escapa caracteres HTML — previne XSS em interpolações de innerHTML */
+const _esc = s => String(s)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
 
-// ── Acento de cor ───────────────────────────────────────────────────────────────
-function setAccent(accent) {
-  currentAccent = accent;
+// ── Estado ───────────────────────────────────────────────────────────────────
+let executando       = false;
+let autenticado      = false;
+let _updUrlDownload  = null;   // URL direta do asset público (sem asset_id)
+let _updVersao       = null;
+let logEntries       = [];
+let currentFilter    = 'all';
+let logIdCounter     = 0;
+let sidebarCollapsed = false;
+let darkMode         = false;
+let activeEgg        = null;
+let currentAccent    = 'amber';
+
+// ── Acento de cor ─────────────────────────────────────────────────────────────
+
+/** Aplica acento visualmente (CSS + botões) sem salvar no backend. */
+function _aplicarAccentVisual(accent) {
   if (accent === 'indigo') {
     document.documentElement.removeAttribute('data-accent');
   } else {
     document.documentElement.setAttribute('data-accent', accent);
   }
-  // destacar botão ativo
   document.querySelectorAll('.btn-accent-opt').forEach(btn => {
     const active = btn.dataset.accent === accent;
-    btn.style.borderColor  = active ? 'currentColor' : 'transparent';
-    btn.style.fontWeight   = active ? '700' : '600';
-    btn.style.opacity      = active ? '1' : '0.65';
+    btn.style.borderColor = active ? 'currentColor' : 'transparent';
+    btn.style.fontWeight  = active ? '700' : '600';
+    btn.style.opacity     = active ? '1' : '0.65';
   });
+}
+
+/** Aplica acento e persiste no backend (usado apenas ao mudar via UI). */
+function setAccent(accent) {
+  currentAccent = accent;
+  _aplicarAccentVisual(accent);
   setTimeout(() => pywebview.api.set_accent && pywebview.api.set_accent(accent), 0);
 }
 
@@ -61,12 +74,10 @@ function _handleEggClick() {
 function _ativarEgg(egg) {
   document.documentElement.setAttribute('data-egg', egg);
   activeEgg = egg;
-  // pink = light, purple = dark
   const isDark = egg === 'purple';
   darkMode = isDark;
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   _atualizarIconeTema();
-  // ocultar botão de tema e seletor de acento
   $('btn-theme').classList.add('hidden');
   document.querySelectorAll('.btn-accent-opt').forEach(b => b.style.display = 'none');
   setTimeout(() => pywebview.api.set_tema(egg), 0);
@@ -127,7 +138,6 @@ function getTime() {
   return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// etapa atual do stepper (avança a cada log durante execução)
 let stepperStep    = 0;
 let _extractStart  = null;
 let _extractParams = null;
@@ -135,12 +145,11 @@ let _extractParams = null;
 function appendLog(msg) {
   let level = 'info';
   if (/erro|falha/i.test(msg))                                         level = 'error';
-  else if (/aviso|duplicata|ignorad/i.test(msg))                       level = 'warning';
+  else if (/aviso|duplicata|ignorad|cancelad/i.test(msg))              level = 'warning';
   else if (/OK|sucesso|autenticado|concluido|registros/i.test(msg))    level = 'ok';
 
   logEntries.push({ id: ++logIdCounter, ts: getTime(), level, msg });
 
-  // avança stepper automaticamente durante extração
   if (executando && stepperStep < STEPS.length - 1) {
     stepperStep++;
     renderStepper(stepperStep, false);
@@ -151,9 +160,9 @@ function appendLog(msg) {
 }
 
 function renderLog() {
-  const body    = $('log-body');
-  const empty   = $('log-empty');
-  const count   = $('log-count');
+  const body     = $('log-body');
+  const empty    = $('log-empty');
+  const count    = $('log-count');
   const filtered = currentFilter === 'all'
     ? logEntries
     : logEntries.filter(e => e.level === currentFilter);
@@ -168,9 +177,9 @@ function renderLog() {
     const div = document.createElement('div');
     div.className = `log-entry ${entry.level}`;
     div.innerHTML =
-      `<span class="log-time">${entry.ts}</span>` +
-      `<span class="log-badge">${entry.level.toUpperCase()}</span>` +
-      `<span class="log-msg">${entry.msg}</span>`;
+      `<span class="log-time">${_esc(entry.ts)}</span>` +
+      `<span class="log-badge">${_esc(entry.level.toUpperCase())}</span>` +
+      `<span class="log-msg">${_esc(entry.msg)}</span>`;
     body.appendChild(div);
   });
   body.scrollTop = body.scrollHeight;
@@ -197,7 +206,7 @@ function copyLog() {
 }
 
 function clearLog() {
-  logEntries = [];
+  logEntries   = [];
   logIdCounter = 0;
   renderLog();
 }
@@ -213,12 +222,13 @@ function setLogFilter(filter, btn) {
 function setStatus(msg, tipo = 'idle') {
   const dot = $('status-dot');
   const txt = $('status-text');
-  dot.className = 'status-dot';
-  txt.className = 'status-txt';
+  dot.className    = 'status-dot';
+  txt.className    = 'status-txt';
+  dot.style.background = '';
   if      (tipo === 'running') { dot.classList.add('spin-dot'); txt.classList.add('running'); }
   else if (tipo === 'ok')      { dot.style.background = 'var(--success)'; txt.classList.add('ok'); }
   else if (tipo === 'erro')    { dot.style.background = 'var(--err)'; txt.classList.add('err'); }
-  else                         { dot.classList.add('pulse'); dot.style.background = ''; }
+  else                         { dot.classList.add('pulse'); }
   txt.textContent = msg;
 }
 
@@ -255,7 +265,7 @@ function renderStepper(currentStep, done) {
     }
 
     const lbl = document.createElement('div');
-    lbl.className = 'step-label';
+    lbl.className   = 'step-label';
     lbl.textContent = label;
 
     item.appendChild(circle);
@@ -263,7 +273,6 @@ function renderStepper(currentStep, done) {
     container.appendChild(item);
   });
 
-  // progress bar
   const pct = done ? 100 : Math.round(((currentStep + 0.5) / STEPS.length) * 100);
   $('step-progress-bar').style.width = `${pct}%`;
 }
@@ -282,11 +291,11 @@ function mostrarErroExtract(msg) {
   }
 }
 
-// ── Histórico ────────────────────────────────────────────────────────────────
+// ── Histórico ─────────────────────────────────────────────────────────────────
 let historicoEntries = [];
 
 function addHistorico(entry) {
-  historicoEntries.unshift(entry); // mais recente no topo
+  historicoEntries.unshift(entry);
   renderHistorico();
 }
 
@@ -296,6 +305,8 @@ function renderHistorico() {
     el.innerHTML = '<div style="color:var(--txt-faint);font-size:12px;text-align:center;padding:40px 0">Nenhuma extração registrada nesta sessão.</div>';
     return;
   }
+
+  // Estrutura da tabela via innerHTML (strings estáticas, sem input do usuário)
   el.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
       <thead>
@@ -305,21 +316,41 @@ function renderHistorico() {
           ).join('')}
         </tr>
       </thead>
-      <tbody>
-        ${historicoEntries.map(r => `
-          <tr style="border-bottom:1px solid rgba(0,0,0,0.04)">
-            <td style="padding:10px;font-size:12px;color:var(--txt)">${r.dataHora}</td>
-            <td style="padding:10px;font-size:12px;color:var(--txt-dim)">${r.periodo}</td>
-            <td style="padding:10px;font-size:12px;font-weight:600;color:var(--txt)">${r.registros.toLocaleString('pt-BR')}</td>
-            <td style="padding:10px;font-size:12px;color:var(--txt-dim)">${r.duracao}</td>
-            <td style="padding:10px">
-              <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:${r.ok ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.09)'};color:${r.ok ? 'var(--success)' : 'var(--err)'}">
-                ${r.ok ? '✓ Sucesso' : '✗ Erro'}
-              </span>
-            </td>
-          </tr>`).join('')}
-      </tbody>
+      <tbody id="history-tbody"></tbody>
     </table>`;
+
+  // Linhas de dados preenchidas com textContent (seguro contra XSS)
+  const tbody = document.getElementById('history-tbody');
+  historicoEntries.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid rgba(0,0,0,0.04)';
+
+    const cellStyle = 'padding:10px;font-size:12px;';
+    const cells = [
+      { text: r.dataHora,  style: cellStyle + 'color:var(--txt)' },
+      { text: r.periodo,   style: cellStyle + 'color:var(--txt-dim)' },
+      { text: Number(r.registros).toLocaleString('pt-BR'), style: cellStyle + 'font-weight:600;color:var(--txt)' },
+      { text: r.duracao,   style: cellStyle + 'color:var(--txt-dim)' },
+    ];
+
+    cells.forEach(({ text, style }) => {
+      const td = document.createElement('td');
+      td.style.cssText = style;
+      td.textContent   = text;
+      tr.appendChild(td);
+    });
+
+    // Coluna de status (conteúdo estático, sem input do usuário)
+    const tdStatus = document.createElement('td');
+    tdStatus.style.padding = '10px';
+    const span = document.createElement('span');
+    span.style.cssText = `display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;background:${r.ok ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.09)'};color:${r.ok ? 'var(--success)' : 'var(--err)'}`;
+    span.textContent = r.ok ? '✓ Sucesso' : '✗ Erro';
+    tdStatus.appendChild(span);
+    tr.appendChild(tdStatus);
+
+    tbody.appendChild(tr);
+  });
 }
 
 // ── Executar ──────────────────────────────────────────────────────────────────
@@ -344,7 +375,7 @@ async function executar() {
   setStatus('Iniciando…', 'running');
   mostrarStepper(true);
   mostrarErroExtract(null);
-  stepperStep = 0;
+  stepperStep    = 0;
   _extractStart  = Date.now();
   _extractParams = { dataIni: $('data-ini').value, dataFim: $('data-fim').value };
   renderStepper(0, false);
@@ -373,26 +404,25 @@ async function executar() {
 
 async function cancelarExtracao() {
   if (!executando) return;
+  // Sinaliza visualmente — o estado real é atualizado via onExtracaoCancelada() do backend
   setStatus('Cancelando…', 'atencao');
   appendLog('Cancelamento solicitado pelo usuário');
   await pywebview.api.cancelar_extracao();
-  setExecutando(false);
-  setProgress(0);  // ← Zerar barra de progresso
-  renderStepper(-1, false);
-  setStatus('Extração cancelada', 'atencao');
-  appendLog('Extração cancelada');
 }
 
-// callback do Python ao terminar
+// ── Callbacks do backend ──────────────────────────────────────────────────────
+
+/** Chamado pelo backend ao concluir extração com sucesso ou erro. */
 function onExtracao({ ok, n, segundos, arquivo, abrir, erro }) {
   setExecutando(false);
   setProgress(1);
   stepperStep = 0;
-  const durSec  = segundos || ((Date.now() - (_extractStart||Date.now())) / 1000).toFixed(1);
-  const agora   = new Date();
-  const p       = d => String(d).padStart(2,'0');
-  const dataHora = `${p(agora.getDate())}/${p(agora.getMonth()+1)}/${agora.getFullYear()} ${p(agora.getHours())}:${p(agora.getMinutes())}`;
+  const durSec   = segundos || ((Date.now() - (_extractStart || Date.now())) / 1000).toFixed(1);
+  const agora    = new Date();
+  const p        = d => String(d).padStart(2, '0');
+  const dataHora = `${p(agora.getDate())}/${p(agora.getMonth() + 1)}/${agora.getFullYear()} ${p(agora.getHours())}:${p(agora.getMinutes())}`;
   const periodo  = _extractParams ? `${_extractParams.dataIni} – ${_extractParams.dataFim}` : '-';
+
   if (ok) {
     renderStepper(STEPS.length, true);
     setStatus(`Concluído — ${n} registros exportados`, 'ok');
@@ -408,7 +438,19 @@ function onExtracao({ ok, n, segundos, arquivo, abrir, erro }) {
   }
 }
 
-// callbacks de progresso
+/** Chamado pelo backend quando a extração foi cancelada intencionalmente. */
+function onExtracaoCancelada() {
+  // setExecutando(false) e setProgress(0) já são chamados pelo finally do backend
+  renderStepper(-1, false);
+  appendLog('Extração cancelada');
+  const agora    = new Date();
+  const p        = d => String(d).padStart(2, '0');
+  const dataHora = `${p(agora.getDate())}/${p(agora.getMonth() + 1)}/${agora.getFullYear()} ${p(agora.getHours())}:${p(agora.getMinutes())}`;
+  const periodo  = _extractParams ? `${_extractParams.dataIni} – ${_extractParams.dataFim}` : '-';
+  const durSec   = (Date.now() - (_extractStart || Date.now())) / 1000;
+  addHistorico({ dataHora, periodo, registros: 0, duracao: `${durSec.toFixed(1)}s`, ok: false });
+}
+
 function onStepUpdate(step) {
   renderStepper(step, false);
   setProgress((step + 0.5) / STEPS.length);
@@ -431,8 +473,8 @@ function setupDateInput(id) {
   if (!el) return;
   el.addEventListener('input', () => {
     let v = el.value.replace(/\D/g, '');
-    if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2);
-    if (v.length > 5) v = v.slice(0,5) + '/' + v.slice(5);
+    if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+    if (v.length > 5) v = v.slice(0, 5) + '/' + v.slice(5);
     el.value = v.slice(0, 10);
     if (el.value.length === 10) validarData(el);
     else el.classList.remove('invalid');
@@ -443,7 +485,7 @@ function setupDateInput(id) {
 function abrirModal() {
   $('overlay').classList.add('visible');
   $('auth-error').classList.remove('visible');
-  try { $('input-usuario').focus(); } catch(_) {}
+  try { $('input-usuario').focus(); } catch (_) {}
 }
 
 function fecharModal() {
@@ -465,7 +507,6 @@ async function fazerLogin() {
     return;
   }
 
-  // estado carregando
   $('btn-entrar').disabled = true;
   $('btn-entrar-text').textContent = 'Autenticando…';
   $('btn-entrar-spin').classList.remove('hidden');
@@ -480,8 +521,8 @@ async function fazerLogin() {
   if (res.ok) {
     autenticado = true;
     const iniciais = usuario.substring(0, 2).toUpperCase();
-    $('user-avatar').textContent  = iniciais;
-    $('user-nome').textContent     = usuario;
+    $('user-avatar').textContent = iniciais;
+    $('user-nome').textContent   = usuario;
     $('user-card').classList.remove('hidden');
     $('btn-usuario-login').classList.add('hidden');
     $('btn-logout').classList.remove('hidden');
@@ -540,13 +581,13 @@ async function limparArquivo() {
 
 // ── Config Dropdown ───────────────────────────────────────────────────────────
 function initConfigDropdown() {
-  const btn  = $('btn-config');
-  const dd   = $('config-dropdown');
+  const btn = $('btn-config');
+  const dd  = $('config-dropdown');
   if (!btn || !dd) return;
-  const abrir  = () => { dd.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); };
+  const abrir  = () => { dd.classList.add('open');    btn.setAttribute('aria-expanded', 'true'); };
   const fechar = () => { dd.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
   btn.addEventListener('click', e => { e.stopPropagation(); dd.classList.contains('open') ? fechar() : abrir(); });
-  document.addEventListener('click', e => { if (!dd.contains(e.target) && e.target !== btn) fechar(); });
+  document.addEventListener('click',   e => { if (!dd.contains(e.target) && e.target !== btn) fechar(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
 }
 
@@ -557,54 +598,72 @@ function _updMostrarEstado(id) {
     if (el) el.classList.toggle('hidden', s !== id);
   });
 }
+
 function _updMostrarBanner(mostrar) {
   const b = $('update-banner');
   if (b) b.classList.toggle('visible', mostrar);
 }
 
-function onAtualizacaoDisponivel(versao, assetId, tamanho, notas) {
-  _updAssetId = assetId; _updVersao = versao;
-  const mb = (tamanho / 1048576).toFixed(1);
-  const lbl = $('upd-versao-label'); const tam = $('upd-tamanho-label');
+function onAtualizacaoDisponivel(versao, urlDownload, tamanho, notas) {
+  _updUrlDownload = urlDownload;
+  _updVersao      = versao;
+  const mb  = (tamanho / 1048576).toFixed(1);
+  const lbl = $('upd-versao-label');
+  const tam = $('upd-tamanho-label');
   if (lbl) lbl.textContent = `Nova versão ${versao} disponível`;
   if (tam) tam.textContent = `${mb} MB`;
   _updMostrarEstado('upd-disponivel');
   _updMostrarBanner(true);
   appendLog('Atualização disponível: v' + versao);
 }
+
 function onDownloadProgresso(pct) {
-  const bar = $('upd-progress-bar'); const lbl = $('upd-pct-label');
+  const bar = $('upd-progress-bar');
+  const lbl = $('upd-pct-label');
   if (bar) bar.style.width = `${Math.round(pct * 100)}%`;
   if (lbl) lbl.textContent = `${Math.round(pct * 100)}%`;
 }
-function onDownloadConcluido() { _updMostrarEstado('upd-pronto'); appendLog('Download concluído — pronto para instalar'); }
+
+function onDownloadConcluido() {
+  _updMostrarEstado('upd-pronto');
+  appendLog('Download concluído — pronto para instalar');
+}
+
 function onDownloadErro(msg) {
   const lbl = $('upd-erro-label');
   if (lbl) lbl.textContent = msg;
   _updMostrarEstado('upd-erro');
   appendLog('Erro no download: ' + msg);
 }
+
 async function iniciarDownloadUpdate() {
-  if (!_updAssetId || !_updVersao) return;
+  if (!_updUrlDownload || !_updVersao) return;
   _updMostrarEstado('upd-baixando');
   appendLog('Iniciando download da atualização…');
-  await pywebview.api.baixar_atualizacao(_updAssetId, _updVersao);
+  await pywebview.api.baixar_atualizacao(_updUrlDownload, _updVersao);
 }
-async function fecharEInstalar() { appendLog('Fechando app e iniciando instalação…'); await pywebview.api.fechar_e_instalar(); }
-function ignorarUpdate() { _updMostrarBanner(false); appendLog('Atualização ignorada'); }
 
-// ── Init UI ───────────────────────────────────────────────────────────────────
+async function fecharEInstalar() {
+  appendLog('Fechando app e iniciando instalação…');
+  await pywebview.api.fechar_e_instalar();
+}
+
+function ignorarUpdate() {
+  _updMostrarBanner(false);
+  appendLog('Atualização ignorada');
+}
+
+// ── Init UI (DOMContentLoaded) — apenas configuração, sem aplicar tema ────────
 window.addEventListener('DOMContentLoaded', () => {
 
   initConfigDropdown();
-  setAccent('amber'); // padrão do redesign
   setupDateInput('data-ini');
   setupDateInput('data-fim');
 
-  // datas padrão: hoje
+  // Datas padrão: hoje
   const hoje = new Date();
   const fmt  = d => String(d).padStart(2, '0');
-  const hojeStr = `${fmt(hoje.getDate())}/${fmt(hoje.getMonth()+1)}/${hoje.getFullYear()}`;
+  const hojeStr = `${fmt(hoje.getDate())}/${fmt(hoje.getMonth() + 1)}/${hoje.getFullYear()}`;
   $('data-ini').value = hojeStr;
   $('data-fim').value = hojeStr;
 
@@ -650,7 +709,7 @@ window.addEventListener('DOMContentLoaded', () => {
     tab.addEventListener('click', () => setLogFilter(tab.dataset.filter, tab));
   });
 
-  // Seletor de acento
+  // Seletor de acento (salva no backend via setAccent)
   document.querySelectorAll('.btn-accent-opt').forEach(btn => {
     btn.addEventListener('click', () => setAccent(btn.dataset.accent));
   });
@@ -669,30 +728,34 @@ window.addEventListener('DOMContentLoaded', () => {
   if (btnRetry)    btnRetry.addEventListener('click', iniciarDownloadUpdate);
 });
 
-// ── Init API (pywebview ready) ────────────────────────────────────────────────
+// ── Init API (pywebviewready) — aplica tema+acento em lote, sem flash ─────────
 window.addEventListener('pywebviewready', async () => {
   const estado = await pywebview.api.get_estado_inicial();
 
-  // Acento salvo
+  // ── Aplicar tema e acento em lote (antes de qualquer outro repaint) ──────
+  // O HTML já carrega com data-theme="dark" — esta etapa apenas confirma
+  // ou corrige para o tema real salvo pelo usuário, minimizando flash.
   const accent = estado.accent || 'amber';
-  setAccent(accent);
+  const tema   = estado.tema   || 'dark';
 
-  // Tema salvo
-  const tema = estado.tema || 'dark';
   if (tema === 'pink' || tema === 'purple') {
     _ativarEgg(tema);
   } else {
     darkMode = tema === 'dark';
     document.documentElement.setAttribute('data-theme', tema);
     _atualizarIconeTema();
+    // Aplicar acento sem persistir (já está salvo no backend)
+    currentAccent = accent;
+    _aplicarAccentVisual(accent);
   }
 
+  // ── Restaurar estado da UI ────────────────────────────────────────────────
   if (estado.arquivo) $('file-path').textContent = estado.arquivo;
   $('input-usuario').value = estado.usuario || estado.usuario_windows || '';
 
   if (estado.filtros) {
     const f = estado.filtros;
-    // NOTA: data_ini e data_fim NÃO são carregadas — sempre devem ser hoje
+    // data_ini e data_fim NÃO são restauradas — sempre iniciam com hoje
     if (f.estab_de)  $('estab-de').value  = f.estab_de;
     if (f.estab_ate) $('estab-ate').value = f.estab_ate;
     if (f.serie_de)  $('serie-de').value  = f.serie_de;
