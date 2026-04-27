@@ -802,4 +802,11 @@ window.addEventListener('pywebviewready', async () => {
 
   appendLog('Extrator DataSul NF-e iniciado');
   pywebview.api.verificar_atualizacao();
+
+  // Exibe o app com fade suave — garante que o tema já foi aplicado antes
+  // de qualquer pixel ser mostrado ao usuário (elimina flash de cores).
+  requestAnimationFrame(() => {
+    document.body.style.transition = 'opacity 180ms ease';
+    document.body.style.opacity    = '1';
+  });
 });
