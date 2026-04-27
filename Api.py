@@ -19,7 +19,7 @@ from core.utils import (
     carregar_credenciais, salvar_credenciais, remover_credenciais,
     carregar_arquivo_preferido, salvar_arquivo_preferido,
     carregar_filtros, salvar_filtros,
-    carregar_tema, salvar_tema,
+    carregar_tema, salvar_tema, carregar_acento,
     range_to_semicolon, ts,
 )
 from core.extrator import processar_dados, filtrar_dataframe, salvar_com_append_apenas
@@ -33,6 +33,8 @@ class Api:
         self._username        = None
         self._password        = None
         self._em_execucao     = False
+        self._session         = None   # referência à session HTTP ativa (para cancelamento)
+        self._cancelado       = False  # distingue cancelamento voluntário de erro real
         self._instalador_path = None
         _docs = os.path.join(os.path.expanduser('~'), 'Documents')
         _padrao = os.path.join(_docs, 'relatorio_nfe_acumulativo.xlsx')
@@ -66,7 +68,7 @@ class Api:
     # ── Credenciais ───────────────────────────────────────────────────────────
 
     def get_estado_inicial(self):
-        """Retorna estado inicial para o frontend: credenciais + arquivo preferido + tema."""
+        """Retorna estado inicial para o frontend: credenciais + arquivo + tema + acento."""
         u, s = carregar_credenciais()
         if u and s:
             self._username = u
@@ -79,6 +81,7 @@ class Api:
             'arquivo':          self._arquivo,
             'filtros':          filtros,
             'tema':             carregar_tema(),
+            'accent':           carregar_acento(),
         }
 
     def get_tema(self):
@@ -136,11 +139,15 @@ class Api:
 
     def abrir_arquivo(self):
         """Abre o arquivo Excel no aplicativo padrão do SO."""
+        # Validação de extensão antes de abrir
+        if not self._arquivo.endswith('.xlsx'):
+            return {'ok': False, 'erro': 'Caminho de arquivo inválido.'}
+        if not os.path.exists(self._arquivo):
+            return {'ok': False, 'erro': 'Arquivo não encontrado.'}
         try:
             if sys.platform == 'win32':
                 os.startfile(self._arquivo)  # noqa — seguro: sem shell, sem expansão
             else:
-                # subprocess com lista: sem shell, sem injeção de comando
                 subprocess.run(['open', self._arquivo], check=False)
             return {'ok': True}
         except Exception as e:
@@ -207,9 +214,8 @@ class Api:
     def fechar_e_instalar(self):
         """
         Executa o instalador silenciosamente e fecha o app.
-        /VERYSILENT       — sem janelas
+        /SILENT           — janela mínima
         /NORESTART        — não reinicia o Windows
-        /RESTARTAPPLICATIONS — reabre o app automaticamente após instalar
         """
         if not self._instalador_path:
             return {'ok': False, 'erro': 'Instalador não encontrado.'}
@@ -241,6 +247,28 @@ class Api:
         t.start()
         return {'ok': True}
 
+    def cancelar_extracao(self):
+        """
+        Cancela a extração em andamento fechando a session HTTP ativa.
+        O fechamento da session interrompe qualquer request.post() bloqueante,
+        forçando uma ConnectionError que é capturada silenciosamente (sem
+        reportar erro na UI, pois o cancelamento é voluntário).
+        """
+        if not self._em_execucao:
+            return {'ok': False, 'erro': 'Nenhuma extração em andamento.'}
+
+        self._cancelado   = True
+        self._em_execucao = False
+
+        if self._session:
+            try:
+                self._session.close()  # interrompe request bloqueante em andamento
+            except Exception:
+                pass
+
+        self._log('Extração cancelada pelo usuário', 'warn')
+        return {'ok': True}
+
     def _keepalive(self, session):
         while self._em_execucao:
             try:
@@ -256,6 +284,7 @@ class Api:
 
     def _executar_thread(self, p):
         self._em_execucao = True
+        self._cancelado   = False  # reset a cada execução
         self._progress(0.1)
         tempo_inicio = datetime.now()
         session = None
@@ -280,6 +309,7 @@ class Api:
             # Autenticação
             self._log('Conectando ao DataSul...')
             session = requests.Session()
+            self._session = session  # armazena referência para cancelamento via cancelar_extracao()
 
             try:
                 session.post(
@@ -445,16 +475,21 @@ class Api:
                 )
 
         except Exception as e:
-            self._status(f"Erro: {str(e)}", 'erro')
-            self._log(f"Erro: {str(e)}", 'err')
-            if self._window:
-                self._window.evaluate_js(
-                    f"onExtracao({{ok:false, erro:{json.dumps(str(e))}}})"
-                )
+            # Cancelamento voluntário: não reportar como erro na UI
+            # (a UI já foi atualizada pelo cancelarExtracao() no frontend)
+            if not self._cancelado:
+                self._status(f"Erro: {str(e)}", 'erro')
+                self._log(f"Erro: {str(e)}", 'err')
+                if self._window:
+                    self._window.evaluate_js(
+                        f"onExtracao({{ok:false, erro:{json.dumps(str(e))}}})"
+                    )
 
         finally:
             if session:
                 session.close()
+            self._session     = None   # limpa referência após encerramento
+            self._cancelado   = False  # reset para próxima execução
             self._em_execucao = False
             self._progress(0)
             if self._window:
