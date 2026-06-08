@@ -13,8 +13,7 @@ jobs:
         run: choco install innosetup -y
 
       - name: Compilar Script
-        run: |
-          "C:\Users\gneves1\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Inno Setup 6\ISCC.exe" ExtratorDataSul_Setup.iss
+        run: iscc ExtratorDataSul_Setup.iss
 
       - name: Upload do Instalador
         uses: actions/upload-artifact@v4
