@@ -112,17 +112,17 @@ def get_prefs_ui_path():
 # ── Preferências de UI ────────────────────────────────────────────────────────
 
 def carregar_tema():
-    """Retorna 'dark' ou 'light'. Padrão: 'dark'."""
+    """Retorna 'dark' ou 'light'. Padrão: 'light'."""
     try:
         import json
         p = get_prefs_ui_path()
         if os.path.exists(p):
             with open(p, 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                return dados.get('tema', 'dark')
+                return dados.get('tema', 'light')
     except Exception as e:
         print(f"Erro ao carregar tema: {e}")
-    return 'dark'
+    return 'light'
 
 def salvar_tema(tema):
     """Persiste o tema ('dark' ou 'light') em prefs_ui.json."""
@@ -136,24 +136,24 @@ def salvar_tema(tema):
                     dados = json.load(f)
             except Exception:
                 pass
-        dados['tema'] = tema if tema in ('dark', 'light', 'pink', 'purple') else 'dark'
+        dados['tema'] = tema if tema in ('dark', 'light', 'pink', 'purple') else 'light'
         with open(p, 'w', encoding='utf-8') as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"Erro ao salvar tema: {e}")
 
 def carregar_acento():
-    """Retorna o acento de cor salvo: 'indigo', 'teal', ou 'amber'. Padrão: 'indigo'."""
+    """Retorna o acento de cor salvo: 'indigo', 'teal', ou 'amber'. Padrão: 'amber'."""
     try:
         import json
         p = get_prefs_ui_path()
         if os.path.exists(p):
             with open(p, 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                return dados.get('acento', 'indigo')
+                return dados.get('acento', 'amber')
     except Exception as e:
         print(f"Erro ao carregar acento: {e}")
-    return 'indigo'
+    return 'amber'
 
 def salvar_acento(acento):
     """Persiste o acento de cor em prefs_ui.json."""
@@ -167,7 +167,7 @@ def salvar_acento(acento):
                     dados = json.load(f)
             except Exception:
                 pass
-        dados['acento'] = acento if acento in ('indigo', 'teal', 'amber') else 'indigo'
+        dados['acento'] = acento if acento in ('indigo', 'teal', 'amber') else 'amber'
         with open(p, 'w', encoding='utf-8') as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
     except Exception as e:

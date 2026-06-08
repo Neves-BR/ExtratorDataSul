@@ -3,8 +3,8 @@ Módulo de auto-update — verifica e baixa atualizações via GitHub Releases A
 Repositório público — sem necessidade de autenticação.
 """
 import os
-import sys
 import requests
+from core.version import APP_VERSION
 from packaging.version import Version
 
 # ── Constantes do repositório ─────────────────────────────────────────────────
@@ -16,31 +16,6 @@ _HEADERS = {
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
 }
-
-# ── Carregamento dinâmico de versão ───────────────────────────────────────────
-
-def _carregar_app_version():
-    """
-    Lê a versão do version.txt na raiz do app.
-    Busca no diretório do executável e em até 3 níveis acima (desenvolvimento).
-    Fallback: '0.0.0'.
-    """
-    try:
-        script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-        for _ in range(4):
-            version_file = os.path.join(script_dir, 'version.txt')
-            if os.path.exists(version_file):
-                with open(version_file, 'r', encoding='utf-8') as f:
-                    versao = f.read().strip()
-                    if versao:
-                        return versao
-            script_dir = os.path.dirname(script_dir)
-    except Exception:
-        pass
-    return '0.0.0'
-
-APP_VERSION = _carregar_app_version()
-
 
 # ── Verificação de versão ─────────────────────────────────────────────────────
 
