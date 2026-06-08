@@ -3,10 +3,7 @@ name: Compilar Instalador
 permissions:
   contents: write
 
-on:
-  push:
-    tags:
-      - 'v*'
+on: [push]
 
 jobs:
   build:
