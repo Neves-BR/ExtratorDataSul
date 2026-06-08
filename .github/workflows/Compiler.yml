@@ -79,4 +79,4 @@ jobs:
           name: Versão ${{ env.VERSION }}
           files: Output/ExtratorDataSul_Setup.exe
           draft: false
-          prerelease: false 
+          prerelease: false
