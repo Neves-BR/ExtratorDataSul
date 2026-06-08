@@ -13,6 +13,10 @@ jobs:
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+        
+      - name: Listar arquivos (Debug)
+        shell: powershell
+        run: Get-ChildItem -Recurse
 
       - name: Ler Versão
         id: get_version
