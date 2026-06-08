@@ -1,6 +1,5 @@
 name: Compilar Instalador
 
-# A permissão deve ficar no nível superior
 permissions:
   contents: write
 
