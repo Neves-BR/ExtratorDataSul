@@ -24,7 +24,7 @@ jobs:
           # pip install -r requirements.txt
           
       - name: Compilar App (PyInstaller)
-        run: pyinstaller --clean --onefile ExtratorDataSul extrator_pywebview.py
+        run: pyinstaller --clean --onefile --name ExtratorDataSul extrator_pywebview.py
 
       - name: Instalar Inno Setup
         run: choco install innosetup -y
