@@ -70,10 +70,12 @@ jobs:
           
       - name: Criar Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') # Mantenha se quiser apenas em tags
         env:
           VERSION: ${{ env.VERSION }}
         with:
-          tag_name: ${{ github.ref_name }}
+          # Alterado aqui para usar a variável de ambiente extraída
+          tag_name: v${{ env.VERSION }} 
           name: Versão ${{ env.VERSION }}
           files: Output/ExtratorDataSul_Setup.exe
           draft: false
