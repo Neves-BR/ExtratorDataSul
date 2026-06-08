@@ -43,6 +43,9 @@ jobs:
       
       - name: Compilar Script
         run: iscc ExtratorDataSul_Setup.iss
+        
+      - name: Listar arquivos na pasta Output
+        run: dir Output\
 
       - name: Upload do Instalador
         uses: actions/upload-artifact@v4
