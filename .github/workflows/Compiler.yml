@@ -11,6 +11,9 @@ jobs:
 
       - name: Instalar Inno Setup
         run: choco install innosetup -y
+      
+      - name: Compilar App (PyInstaller)
+        run: pyinstaller --clean
 
       - name: Compilar Script
         run: iscc ExtratorDataSul_Setup.iss
