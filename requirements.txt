@@ -1,3 +1,4 @@
+packaging
 # Dependências de produção — ExtratorDataSul NF-e PyWebView
 # Instalar com: pip install -r requirements.txt
 
