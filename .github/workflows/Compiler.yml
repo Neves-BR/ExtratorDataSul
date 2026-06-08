@@ -33,6 +33,13 @@ jobs:
         run: |
           mkdir dist\ExtratorDataSul
           copy dist\ExtratorDataSul.exe dist\ExtratorDataSul\
+          
+      - name: Debugar arquivos
+        run: |
+          echo "Conteúdo da pasta dist:"
+          dir dist
+          echo "Conteúdo da pasta dist\ExtratorDataSul:"
+          dir dist\ExtratorDataSul || echo "Esta pasta não existe"
       
       - name: Compilar Script
         run: iscc ExtratorDataSul_Setup.iss
