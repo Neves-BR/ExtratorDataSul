@@ -1,9 +1,8 @@
 name: Compilar Instalador
 
+permissions:
+  contents: write
 on:
-  permissions:
-    contents: write
-
   push:
     tags:
       - 'v*'  # O workflow só roda se você enviar uma tag como 'v1.0.1'
