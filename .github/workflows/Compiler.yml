@@ -22,12 +22,20 @@ jobs:
         id: get_version
         shell: powershell
         run: |
-          $content = Get-Content -Path "version.py" -Raw
-          if ($content -match "VERSION\s*=\s*['`"]([^'`"]+)['`"]") {
-              $ver = $matches[1]
-              echo "VERSION=$ver" >> $env:GITHUB_ENV
+          $path = "core/version.py"
+          if (Test-Path $path) {
+              $content = Get-Content -Path $path -Raw
+              if ($content -match "VERSION\s*=\s*['`"]([^'`"]+)['`"]") {
+                  $ver = $matches[1]
+                  echo "VERSION=$ver" >> $env:GITHUB_ENV
+                  echo "Versão encontrada: $ver"
+              } else {
+                  echo "VERSION=0.0.0" >> $env:GITHUB_ENV
+                  echo "Padrão de versão não encontrado, usando 0.0.0"
+              }
           } else {
-              echo "VERSION=0.0.0" >> $env:GITHUB_ENV
+              Write-Error "Arquivo $path não encontrado."
+              exit 1
           }
       
       - name: Instalar Python
