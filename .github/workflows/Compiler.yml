@@ -28,6 +28,11 @@ jobs:
 
       - name: Instalar Inno Setup
         run: choco install innosetup -y
+        
+      - name: Preparar pastas para o Inno Setup
+        run: |
+          mkdir dist\ExtratorDataSul
+          copy dist\ExtratorDataSul.exe dist\ExtratorDataSul\
       
       - name: Compilar Script
         run: iscc ExtratorDataSul_Setup.iss
