@@ -1,11 +1,14 @@
 name: Compilar Instalador
 
+# A permissão deve ficar no nível superior
 permissions:
   contents: write
+
 on:
   push:
     tags:
-      - 'v*'  # O workflow só roda se você enviar uma tag como 'v1.0.1'
+      - 'v*'
+
 jobs:
   build:
     runs-on: windows-latest
@@ -36,8 +39,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
-          # Se seu projeto tiver um requirements.txt, instale também:
-          # pip install -r requirements.txt
           
       - name: Compilar App (PyInstaller)
         run: pyinstaller --clean --onefile --name ExtratorDataSul extrator_pywebview.py
@@ -49,24 +50,14 @@ jobs:
         run: |
           mkdir dist\ExtratorDataSul
           copy dist\ExtratorDataSul.exe dist\ExtratorDataSul\
-          
-      - name: Debugar arquivos
-        run: |
-          echo "Conteúdo da pasta dist:"
-          dir dist
-          echo "Conteúdo da pasta dist\ExtratorDataSul:"
-          dir dist\ExtratorDataSul || echo "Esta pasta não existe"
       
       - name: Compilar Script
         run: iscc ExtratorDataSul_Setup.iss
         
-      - name: Listar arquivos na pasta Output
-        run: dir Output\
-
       - name: Upload do Instalador
         uses: actions/upload-artifact@v4
         with:
-          name: ExtratorDataSul
+          name: ExtratorDataSul-Instalador
           path: Output/*.exe
           
       - name: Criar Release
